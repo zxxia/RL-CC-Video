@@ -1,6 +1,9 @@
+import csv
+import os
 import sys
 import math
 import itertools
+from typing import Optional
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -19,12 +22,16 @@ class TunnelGraph(object):
     def bin_to_s(self, bin_id):
         return bin_id * self.ms_per_bin / 1000.0
 
-    def parse_tunnel_log(self):
+    def parse_tunnel_log(self, save_dir: Optional[str] = None):
         tunlog = open(self.tunnel_log)
 
         self.flows = {}
         first_ts = None
         capacities = {}
+
+        arrival_ts = {}
+        arrival_data = {}
+        parsed_log = {}
 
         arrivals = {}
         departures = {}
@@ -81,6 +88,12 @@ class TunnelGraph(object):
                     arrivals[flow_id] = {}
                     first_arrival[flow_id] = ts
 
+                if flow_id not in arrival_ts:
+                    arrival_ts[flow_id] = []
+                    arrival_data[flow_id] = []
+                arrival_ts[flow_id].append(ts)
+                arrival_data[flow_id].append(int(num_bits/8))
+
                 if flow_id not in last_arrival:
                     last_arrival[flow_id] = ts
                 else:
@@ -102,6 +115,13 @@ class TunnelGraph(object):
                 if flow_id not in departures:
                     departures[flow_id] = {}
                     first_departure[flow_id] = ts
+
+                idx = arrival_ts[flow_id].index(round(ts - float(items[3]), 3))
+                if flow_id not in parsed_log:
+                    parsed_log[flow_id] = []
+                parsed_log[flow_id].append([arrival_ts[flow_id][idx], float(items[3]), int(num_bits/8)])
+                arrival_ts[flow_id].pop(idx)
+                arrival_data[flow_id].pop(idx)
 
                 if flow_id not in last_departure:
                     last_departure[flow_id] = ts
@@ -130,7 +150,14 @@ class TunnelGraph(object):
                 self.delays_t[flow_id].append((ts - first_ts) / 1000.0)
 
         tunlog.close()
-
+        assert len(arrival_ts[flow_id]) == len(arrival_data[flow_id])
+        for arr_ts, data in zip(arrival_ts[flow_id], arrival_data[flow_id]):
+            parsed_log[flow_id].append([arr_ts, -1, data])
+        parsed_log[flow_id] = sorted(parsed_log[flow_id])
+        if save_dir:
+            with open(os.path.join(save_dir, "formatted_" + os.path.basename(self.tunnel_log)), 'w') as f:
+                writer = csv.writer(f, lineterminator='\n')
+                writer.writerows(parsed_log[flow_id])
         us_per_bin = 1000.0 * self.ms_per_bin
 
         self.avg_capacity = None

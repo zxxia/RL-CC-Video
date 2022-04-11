@@ -4,7 +4,7 @@ import multiprocessing as mp
 import os
 import random
 from enum import Enum
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import tqdm
@@ -12,6 +12,7 @@ import tqdm
 from common.utils import pcc_aurora_reward
 from plot_scripts.plot_packet_log import plot
 from plot_scripts.plot_time_series import plot as plot_mi_level_time_series
+from simulator.network_simulator.app import Application
 from simulator.network_simulator.constants import (BITS_PER_BYTE,
                                                    BYTES_PER_PACKET, TCP_INIT_CWND)
 from simulator.network_simulator.link import Link
@@ -181,6 +182,7 @@ class BBRSender(Sender):
         self.exit_fast_recovery_ts = -1
 
         self.init()
+        self.limited_by_cwnd = False
         # self.bbr_log = []
 
     def init(self):
@@ -551,33 +553,33 @@ class BBRSender(Sender):
 
     def schedule_send(self, first_pkt: bool = False, on_ack: bool = False):
         assert self.net, "network is not registered in sender."
+        if isinstance(self.app, Application) and not self.app.has_data(self.get_cur_time()):
+            return
         if first_pkt:
             self.next_send_time = 0
         elif on_ack:
-            if self.get_cur_time() < self.next_send_time:
-                return
-            return
-            # self.next_send_time = self.get_cur_time()
+            self.next_send_time = self.get_cur_time()
         else:
             self.next_send_time = self.get_cur_time() + BYTES_PER_PACKET / self.pacing_rate # (5 * 1e6 / 8)#
         next_pkt = BBRPacket(self.next_send_time, self, 0)
         self.net.add_packet(next_pkt)
 
-    def on_packet_sent(self, pkt: BBRPacket) -> None:
-        # if self.get_cur_time() >= self.next_send_time:
+    def on_packet_sent(self, pkt: BBRPacket) -> bool:
+        if not self.can_send_packet():
+            # self.schedule_send()
+            self.limited_by_cwnd = True
+            return False
+        assert self.get_cur_time() >= self.next_send_time
         # packet = nextPacketToSend() # assume always a packet to send from app
-        if not pkt:
+        if isinstance(self.app, Application) and not self.app.has_data(self.get_cur_time()):
             self.app_limited_until = self.bytes_in_flight
-            return
+            return False
         self.send_packet(pkt)
         # ship(packet) # no need to do this in the simulator.
         super().on_packet_sent(pkt)
-        # self.next_send_time = self.net.get_cur_time() + pkt.pkt_size / \
-        #     (self.pacing_gain * self.btlbw)
-        # else:
-        #     ipdb.set_trace()
         # timerCallbackAt(send, nextSendTime)
-        # TODO: potential bug here if previous call return at if inflight < cwnd
+        self.schedule_send()
+        return True
 
     def on_packet_acked(self, pkt: BBRPacket) -> None:
         if not self.net:
@@ -592,12 +594,20 @@ class BBRSender(Sender):
             self.packet_conservation = False
             self.on_exit_fast_recovery()
 
+        if self.limited_by_cwnd:
+            self.schedule_send(on_ack=True)
+            self.limited_by_cwnd = False
+
     def on_packet_lost(self, pkt: BBRPacket) -> None:
         if not self.net:
             raise RuntimeError("network is not registered in sender.")
         super().on_packet_lost(pkt)
         self.rs.losses += 1
         self.on_enter_fast_recovery(pkt)
+
+        if self.limited_by_cwnd:
+            self.schedule_send(on_ack=True)
+            self.limited_by_cwnd = False
 
     def reset(self):
         super().reset()
@@ -617,6 +627,8 @@ class BBRSender(Sender):
 
         self.in_fast_recovery_mode = False
         self.exit_fast_recovery_ts = -1
+
+        self.limited_by_cwnd = False
 
         self.init()
 
@@ -644,9 +656,11 @@ class BBRSender(Sender):
 class BBR:
     cc_name = 'bbr'
 
-    def __init__(self, record_pkt_log: bool = False, seed: int = 42):
+    def __init__(self, record_pkt_log: bool = False, seed: int = 42,
+                 app: Optional[Application] = None):
         self.record_pkt_log = record_pkt_log
         self.seed = seed
+        self.app = app
 
     def test(self, trace: Trace, save_dir: str, plot_flag: bool = False) -> Tuple[float, float]:
         """Test a network trace and return rewards.
@@ -666,6 +680,8 @@ class BBR:
 
         links = [Link(trace), Link(trace)]
         senders = [BBRSender(0, 0, self.seed)]
+        if self.app:
+            senders[0].register_application(self.app)
         net = Network(senders, links, self.record_pkt_log)
 
         rewards = []
@@ -749,10 +765,8 @@ class BBR:
             with open(os.path.join(
                 save_dir, "{}_packet_log.csv".format(self.cc_name)), 'w', 1) as f:
                 pkt_logger = csv.writer(f, lineterminator='\n')
-                pkt_logger.writerow(['timestamp', 'packet_event_id',
-                                     'event_type', 'bytes', 'cur_latency',
-                                     'queue_delay', 'packet_in_queue',
-                                     'sending_rate', 'bandwidth'])
+                pkt_logger.writerow(['packet_event_id', 'send_timestamp',
+                                     'latency', 'bytes'])
                 pkt_logger.writerows(net.pkt_log)
         # with open(os.path.join(save_dir, "{}_log.csv".format(self.cc_name)), 'w', 1) as f:
         #     writer = csv.writer(f, lineterminator='\n')

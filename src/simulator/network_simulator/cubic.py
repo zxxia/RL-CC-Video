@@ -1,7 +1,7 @@
 import csv
 import os
 import multiprocessing as mp
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import tqdm
@@ -9,6 +9,7 @@ import tqdm
 from common.utils import pcc_aurora_reward
 from plot_scripts.plot_packet_log import plot
 from plot_scripts.plot_time_series import plot as plot_simulation_log
+from simulator.network_simulator.app import Application
 from simulator.network_simulator.constants import (BITS_PER_BYTE, BYTES_PER_PACKET, MIN_CWND, TCP_INIT_CWND)
 from simulator.network_simulator.link import Link
 from simulator.network_simulator.network import Network
@@ -33,8 +34,10 @@ class TCPCubicSender(Sender):
 
         self.cubic_reset()
 
-    def on_packet_sent(self, pkt: Packet):
-        return super().on_packet_sent(pkt)
+    def on_packet_sent(self, pkt: Packet) -> bool:
+        if self.can_send_packet():
+            return super().on_packet_sent(pkt)
+        return False
 
     def on_packet_acked(self, pkt: Packet):
         if not self.net:
@@ -64,7 +67,7 @@ class TCPCubicSender(Sender):
         if not self.net:
             raise RuntimeError("network is not registered in sender.")
         super().on_packet_lost(pkt)
-        rtt = pkt.cur_latency
+        # rtt = pkt.cur_latency
         # print('packet_loss,', self.net.get_cur_time(), rtt, self.pkt_loss_wait_time)
         if self.get_cur_time() > self.pkt_loss_wait_time:
             # : #
@@ -182,6 +185,8 @@ class TCPCubicSender(Sender):
 
     def schedule_send(self, first_pkt=False, on_ack=False):
         assert self.net, "network is not registered in sender."
+        if isinstance(self.app, Application) and not self.app.has_data(self.get_cur_time()):
+            return
         for _ in range(int(self.cwnd - self.bytes_in_flight / BYTES_PER_PACKET)):
             pkt = Packet(self.get_cur_time(), self, 0)
             self.net.add_packet(pkt)
@@ -190,8 +195,9 @@ class TCPCubicSender(Sender):
 class Cubic:
     cc_name = 'cubic'
 
-    def __init__(self, record_pkt_log: bool = False):
+    def __init__(self, record_pkt_log: bool = False, app: Optional[Application] = None):
         self.record_pkt_log = record_pkt_log
+        self.app = app
 
     def test(self, trace: Trace, save_dir: str, plot_flag: bool = False) -> Tuple[float, float]:
         """Test a network trace and return rewards.
@@ -211,6 +217,8 @@ class Cubic:
 
         links = [Link(trace), Link(trace)]
         senders = [TCPCubicSender(0, 0)]
+        if self.app:
+            senders[0].register_application(self.app)
         net = Network(senders, links, self.record_pkt_log)
 
         rewards = []
@@ -289,12 +297,8 @@ class Cubic:
             with open(os.path.join(
                 save_dir, "{}_packet_log.csv".format(self.cc_name)), 'w', 1) as f:
                 pkt_logger = csv.writer(f, lineterminator='\n')
-                # pkt_logger.writerow(['timestamp', 'packet_event_id',
-                #                      'event_type', 'bytes', 'cur_latency',
-                #                      'queue_delay', 'packet_in_queue',
-                #                      'sending_rate', 'bandwidth', 'cwnd'])
                 pkt_logger.writerow(['packet_event_id', 'send_timestamp',
-                                     'latency'])
+                                     'latency', 'bytes'])
                 pkt_logger.writerows(net.pkt_log)
         if plot_flag and save_dir:
             plot_simulation_log(trace, os.path.join(save_dir, '{}_simulation_log.csv'.format(self.cc_name)), save_dir, self.cc_name)

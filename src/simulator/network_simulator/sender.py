@@ -3,6 +3,7 @@ from typing import List, TypeVar, Tuple
 from common import sender_obs
 from simulator.network_simulator import network, packet
 from simulator.network_simulator.constants import BITS_PER_BYTE, BYTES_PER_PACKET, EVENT_TYPE_SEND
+from simulator.network_simulator.app import Application
 
 
 class Sender:
@@ -60,6 +61,7 @@ class Sender:
         self.lat_ts = []
         self.lats = []
         self.bin_size = 500 # ms
+        self.app = None
 
     def can_send_packet(self) -> bool:
         return True
@@ -67,7 +69,16 @@ class Sender:
     def register_network(self, net: "network.Network") -> None:
         self.net = net
 
-    def on_packet_sent(self, pkt: "packet.Packet") -> None:
+    def register_application(self, app: Application) -> None:
+        self.app = app
+
+    def on_packet_sent(self, pkt: "packet.Packet") -> bool:
+        if isinstance(self.app, Application):
+            app_pkt_id, pkt_size = self.app.get_packet()
+            pkt.add_app_data("app_pkt_id", app_pkt_id)
+            pkt.pkt_size = pkt_size
+
+        assert pkt.pkt_size != 0
         pkt.pkt_id = self.event_count
         self.event_count += 1
         self.sent += 1
@@ -79,6 +90,7 @@ class Sender:
 
         bin_id = int((pkt.ts - self.first_sent_ts) * 1000 / self.bin_size)
         self.bin_bytes_sent[bin_id] = self.bin_bytes_sent.get(bin_id, 0) + pkt.pkt_size
+        return True
 
     def on_packet_acked(self, pkt: "packet.Packet") -> None:
         self.acked += 1
@@ -111,11 +123,20 @@ class Sender:
         self.lat_ts.append(pkt.ts)
         self.lats.append(pkt.rtt * 1000)
 
+        if isinstance(self.app, Application):
+            self.app.feedback(
+                self.get_cur_time(),
+                [(pkt.get_app_data("app_pkt_id"), False, pkt.datalink_delay)])
+
     def on_packet_lost(self, pkt: "packet.Packet") -> None:
         self.lost += 1
         self.tot_lost += 1
         assert self.bytes_in_flight >= pkt.pkt_size
         self.bytes_in_flight -= pkt.pkt_size
+        if isinstance(self.app, Application):
+            self.app.feedback(
+                self.get_cur_time(),
+                [(pkt.get_app_data("app_pkt_id"), True, -1)])
 
     def get_cur_time(self) -> float:
         assert self.net, "network is not registered in sender."
@@ -215,6 +236,9 @@ class Sender:
     def bin_tput(self) -> Tuple[List[float], List[float]]:
         tput_ts = []
         tput = []
+        for k in range(max(self.bin_bytes_acked)):
+            if k not in self.bin_bytes_acked:
+                self.bin_bytes_acked[k] = 0
         for bin_id in sorted(self.bin_bytes_acked):
             tput_ts.append(bin_id * self.bin_size / 1000)
             tput.append(
@@ -225,6 +249,9 @@ class Sender:
     def bin_sending_rate(self) -> Tuple[List[float], List[float]]:
         sending_rate_ts = []
         sending_rate = []
+        for k in range(max(self.bin_bytes_sent)):
+            if k not in self.bin_bytes_sent:
+                self.bin_bytes_sent[k] = 0
         for bin_id in sorted(self.bin_bytes_sent):
             sending_rate_ts.append(bin_id * self.bin_size / 1000)
             sending_rate.append(

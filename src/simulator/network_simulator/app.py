@@ -16,7 +16,14 @@ class Application:
         # print(pkt_cnt, self.pkt_cnt)
         return pkt_cnt, 1500
 
-    def feedback(self, ts: float, packet_info: List[Tuple[int, bool, float]]):
-        """Return packet info to application layer. Called by CC."""
+    def feedback(self, ts: float, packet_info: List[Tuple[int, bool, float, float, int]]):
+        """Return packet info to application layer. Called by CC.
+
+        Args
+            ts: current timestamp in second.
+            packet_info: list of (pkt id, dropped, one way delay, recv
+                    timestamp, pkt size)
+
+        """
         # print(ts, packet_info)
         return

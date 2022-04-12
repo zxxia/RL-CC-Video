@@ -62,6 +62,7 @@ class TCPCubicSender(Sender):
                     self.cwnd_cnt += 1
         # add packet into network
         self.schedule_send()
+        self.pacing_rate = self.cwnd * BYTES_PER_PACKET / self.srtt
 
     def on_packet_lost(self, pkt: Packet) -> None:
         if not self.net:
@@ -95,6 +96,7 @@ class TCPCubicSender(Sender):
 
         # add packet into network
         self.schedule_send()
+        self.pacing_rate = self.cwnd * BYTES_PER_PACKET / self.srtt
 
     def cubic_reset(self):
         self.W_last_max = 0

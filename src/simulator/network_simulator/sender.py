@@ -127,7 +127,8 @@ class Sender:
             self.app.feedback(
                 self.get_cur_time(),
                 [(pkt.get_app_data("app_pkt_id"), False, pkt.datalink_delay,
-                  pkt.sent_time + pkt.datalink_delay, pkt.pkt_size)])
+                  pkt.sent_time + pkt.datalink_delay, pkt.pkt_size,
+                  self.pacing_rate)])
 
     def on_packet_lost(self, pkt: "packet.Packet") -> None:
         self.lost += 1
@@ -137,7 +138,8 @@ class Sender:
         if isinstance(self.app, Application):
             self.app.feedback(
                 self.get_cur_time(),
-                [(pkt.get_app_data("app_pkt_id"), True, -1, -1, pkt.pkt_size)])
+                [(pkt.get_app_data("app_pkt_id"), True, -1, -1, pkt.pkt_size,
+                  self.pacing_rate)])
 
     def get_cur_time(self) -> float:
         assert self.net, "network is not registered in sender."

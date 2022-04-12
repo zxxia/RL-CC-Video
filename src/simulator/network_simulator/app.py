@@ -403,13 +403,15 @@ class NACKSender:
         return self.frame_buffer
 
 class VideoApplication:
-    def __init__(self, fps:int, encoder:H264Encoder, trans:NACKSender):
+    def __init__(self, fps:int, init_bitrate: int, encoder:H264Encoder, trans:NACKSender):
         self.encoder = encoder
         self.trans = trans
         self.fps = fps
 
         self.curr_ts = 0
-        self.last_frame_ts = 0
+        self.last_frame_ts = -500
+
+        self.trans.on_target_bitrate_change(init_bitrate)
 
     def tick(self, timestamp:float):
         """
@@ -421,6 +423,7 @@ class VideoApplication:
             target_size = self.trans.calculate_frame_size()
             frame = self.encoder.get_next_frame(target_size)
             self.trans.on_new_frame(self.curr_ts, frame)
+            self.last_frame_ts = self.curr_ts
 
     def should_send_new_frame(self) -> bool:
         return self.curr_ts - self.last_frame_ts > 1 / self.fps
@@ -438,7 +441,54 @@ class VideoApplication:
         """
         return self.trans.get_packet()
 
+    def feedback(self, ts: float, packet_info: List[Tuple[int, bool, float, float, int]], tgt_bitrate: int):
+        """
+        Called when new packet is acked by the sender, triggered by CC
+        Input:
+            ts: current timestamp in second.
+            packet_info: list of (pkt id, dropped, one way delay, recv
+                    timestamp, pkt size)
+            tgt_bitrate: target_bitrate in byte per sec
+        """
+        self.trans.on_target_bitrate_change(tgt_bitrate)
+        self.tick(ts)
+        for info in packet_info:
+            pktid, islost, delay, recv_ts, pkt_size = info
+            self.trans.on_packet_feedback(ts, pktid, islost, delay, recv_ts, pkt_size)
 
+class VideoApplicationBuilder:
+    def __init__(self, fps=25):
+        self.fps = 25
+        self.profile = None
+        self.init_bitrate = 250 * 1000
+
+    def set_init_bitrate(self, bitrate):
+        """
+        bitrate: in byte per sec
+        """
+        self.init_bitrate = bitrate
+
+    def set_profile(self, profile):
+        """
+        profile: encoder profile
+        """
+        self.profile = profile
+        return self
+
+    def set_fps(self, fps):
+        """
+        fps: the frame rate in FPS
+        """
+        self.fps = fps
+        return self
+
+    def build(self) -> VideoApplication:
+        assert self.fps is not None
+        assert self.profile is not None, "need to set profile before build()"
+        encoder = H264Encoder(self.profile)
+        trans = NACKSender(self.fps)
+        app = VideoApplication(self.fps, self.init_bitrate, encoder, trans)
+        return app
 
 ''' ============ unit tests ============ '''
 def test_h264_encoder():
@@ -564,8 +614,29 @@ def test_nack_sender():
     print(sender.get_frame_buffer().get_psnr_delay(skip_bad=False))
     print("\033[32m----- Passed test_nack_sender -----\033[0m")
 
+
+def test_app():
+    print("\033[32m===== start test_app =====\033[0m")
+    builder = VideoApplicationBuilder()
+    profile = "/datamirror/yihua98/projects/autoencoder_testbed/sim_db/test_mpeg.csv"
+    tgt_br = 250 * 1000
+    builder.set_profile(profile).set_fps(25).set_init_bitrate(tgt_br)
+    app = builder.build()
+
+    assert app.has_data(0) == True
+    ts = 10
+    while app.has_data(0):
+        id, sz = app.get_packet()
+        lost = np.random.uniform(0, 1) < 0.2
+        app.feedback(ts, [(id, lost, ts, ts, sz)], tgt_br)
+        print(f"packet id={id}, size={sz}, islost={lost}")
+
+    print("\033[32m----- Passed test_app -----\033[0m")
+
+
 if __name__ == "__main__":
     test_h264_encoder()
     test_frame_packet()
     test_buffers()
     test_nack_sender()
+    test_app()

@@ -466,6 +466,7 @@ class VideoApplication(Application):
         if self.should_send_new_frame():
             target_size = self.trans.calculate_frame_size()
             frame = self.encoder.get_next_frame(target_size)
+            print("[{:.4f}] Generated a frame with size {} Bytes".format(self.curr_ts, frame.size))
             if frame is None:
                 return
             self.trans.on_new_frame(self.curr_ts, frame)
@@ -674,7 +675,7 @@ def test_app():
     app = builder.build()
 
     assert app.has_data(0) == True
-    ts = 10
+    ts = 0.01
     while app.has_data(0):
         id, sz = app.get_packet()
         lost = np.random.uniform(0, 1) < 0.2

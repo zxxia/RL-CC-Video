@@ -566,11 +566,10 @@ class BBRSender(Sender):
 
     def on_packet_sent(self, pkt: BBRPacket) -> bool:
         if not self.can_send_packet():
-            # self.schedule_send()
             self.limited_by_cwnd = True
             return False
-        assert self.get_cur_time() >= self.next_send_time
-        # packet = nextPacketToSend() # assume always a packet to send from app
+        if self.get_cur_time() < self.next_send_time:
+            return False
         if isinstance(self.app, Application) and not self.app.has_data(self.get_cur_time()):
             self.app_limited_until = self.bytes_in_flight
             return False

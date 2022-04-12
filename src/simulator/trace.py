@@ -59,6 +59,9 @@ class Trace():
         self.return_noise = False
         self.bw_change_interval = bw_change_interval
 
+    def scale_bw(self, min_bw, max_bw):
+        self.bandwidths = list((np.array(self.bandwidths) - min(self.bandwidths)) / np.ptp(self.bandwidths) * (max_bw - min_bw) + min_bw)
+
     def real_trace_configs(self, normalized=False) -> List[float]:
         if normalized:
             return [(self.min_bw - 0.1) / (100 - 0.1),
@@ -256,7 +259,9 @@ class Trace():
                                 ms_per_bin: int = 500, front_offset: float = 0,
                                 wrap: bool = False):
         flow = Flow(uplink_filename, ms_per_bin)
-        downlink_filename = uplink_filename.replace('datalink', 'acklink')
+        filename = os.path.basename(uplink_filename)
+        dirname = os.path.dirname(uplink_filename)
+        downlink_filename = os.path.join(dirname, filename.replace('datalink', 'acklink'))
         if downlink_filename and os.path.exists(downlink_filename):
             downlink = Flow(downlink_filename, ms_per_bin)
         else:
@@ -277,6 +282,9 @@ class Trace():
                     wrapped_bw.append(bw)
         timestamps += wrapped_ts
         bandwidths += wrapped_bw
+
+        if timestamps[0] != 0:
+            timestamps = list(np.array(timestamps) - timestamps[0])
 
         tr = Trace(timestamps, bandwidths, [delay], loss, queue)
         return tr

@@ -3,22 +3,23 @@ from simulator.network_simulator.app import Application, VideoApplicationBuilder
 from simulator.network_simulator.bbr_old import BBR_old
 from simulator.network_simulator.bbr import BBR
 from simulator.network_simulator.cubic import Cubic
-from simulator.trace import generate_trace
+from simulator.trace import generate_trace, Trace
 from simulator.pantheon_dataset import PantheonDataset
 
 
 def main():
-    # trace = generate_trace(
-    #     duration_range=(30, 30),
-    #     bandwidth_lower_bound_range=(10, 10),
-    #     bandwidth_upper_bound_range=(10, 10),
-    #     delay_range=(50, 50),
-    #     loss_rate_range=(0.0, 0.0),
-    #     queue_size_range=(1, 1),
-    #     T_s_range=(5, 5),
-    #     delay_noise_range=(0, 0), seed=10)
+     # /tank/patheon_traces/yihua/ethernet/queue20/2018-12-20T04-36-Colombia-to-AWS-Brazil-2-5-runs/quic_datalink_run1/formatted_bbr_datalink_run1.log
+    trace = generate_trace(
+        duration_range=(30, 30),
+        bandwidth_lower_bound_range=(10, 10),
+        bandwidth_upper_bound_range=(10, 10),
+        delay_range=(50, 50),
+        loss_rate_range=(0.0, 0.0),
+        queue_size_range=(1, 1),
+        T_s_range=(5, 5),
+        delay_noise_range=(0, 0), seed=10)
     # # bbr_old = BBR_old(True)
-    # app = Application()
+    app = Application()
     # bbr = BBR(True, app=app)
     # bbr.test(trace, 'test', plot_flag=True)
     #
@@ -46,9 +47,16 @@ def main():
     builder.set_profile(profile).set_fps(25).set_init_bitrate(tgt_br)
     app = builder.build()
     bbr = BBR(True, app=app)
+
+    # trace_file = "/tank/pantheon_traces/yihua/ethernet/queue20/2018-12-20T04-36-Colombia-to-AWS-Brazil-2-5-runs/quic_datalink_run1/bbr_datalink_run1.log"
+    # trace = Trace.load_from_pantheon_file(trace_file, 0, 20)
+    # trace.scale_bw(0.1, 5)
     bbr.test(trace, 'test', plot_flag=True)
+    print(app.encoder.frame_id)
+    app = builder.build()
     cubic = Cubic(True, app)
     cubic.test(trace, 'test', plot_flag=True)
+    print(app.encoder.frame_id)
 
 if __name__ == "__main__":
     main()

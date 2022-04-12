@@ -198,6 +198,19 @@ class FrameInfo:
             return self.recv_time - self.sent_time
         return None
 
+class AEFrameInfo(FrameInfo):
+    def __init__(self, frame_id, size, psnr, ae_encoder):
+        super(AEFrameInfo, self).__init__(frame_id, size, psnr)
+        self.encoder = ae_encoder
+
+    def estimate_psnr(self):
+        """
+        Returns:
+            the estimated psnr based on the received packet information
+        """
+        # TODO: here!
+        pass
+
 class H264Encoder:
     """ 
     Read the H264/H265 profile and provide frames
@@ -249,14 +262,45 @@ class H264Encoder:
         Input:
             target_size: the target size of a frame
         Returns:
-            frame: the FrameInfo object 
+            frame: the FrameInfo object, will be None if there is no more frames
         """
+        if self.frame_id >= self.nframes:
+            return None
+
         frame_id = self.frame_id
         self.frame_id += 1
-    
+
         size, psnr = self._fit_size_for_frame(frame_id, target_size)
         return FrameInfo(frame_id, size, psnr)
 
+class Autoencoder:
+    """
+    Read the autoencoder profile and provide frames
+    """
+    def __init__(self, profile):
+        self.frame_id = 0
+        self._load_video_profile(profile)
+
+    def _load_video_profile(self, video_profile):
+        """
+        Input:
+            video_profile: csv, format is <frame_id> <size> <psnr> <loss> <qp>
+        """
+        self.profile = pd.read_csv(video_profile)
+        freeze_psnr_row = self.profile.query("frame_id == -1")
+        self.freeze_psnr = float(freeze_psnr_row["psnr"])
+        self.nframes = max(self.profile["frame_id"])
+        print("Load the information for {} frames".format(self.nframes))
+        return self
+
+    def get_next_frame(self, target_sze) -> FrameInfo:
+        """
+        Input:
+            target_size: the target size of the frame
+        Output:
+            frame: the frameinfo object
+        """
+        # TODO: here!
 
 class FrameBuffer:
     """
@@ -422,6 +466,8 @@ class VideoApplication:
         if self.should_send_new_frame():
             target_size = self.trans.calculate_frame_size()
             frame = self.encoder.get_next_frame(target_size)
+            if frame is None:
+                return
             self.trans.on_new_frame(self.curr_ts, frame)
             self.last_frame_ts = self.curr_ts
 
@@ -456,6 +502,9 @@ class VideoApplication:
         for info in packet_info:
             pktid, islost, delay, recv_ts, pkt_size, tgt_br = info
             self.trans.on_packet_feedback(ts, pktid, islost, delay, recv_ts, pkt_size)
+
+    def get_summary(self) -> pd.DataFrame():
+        return self.trans.get_frame_buffer().get_psnr_delay()
 
 class VideoApplicationBuilder:
     def __init__(self, fps=25):

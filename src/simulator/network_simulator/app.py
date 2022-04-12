@@ -344,16 +344,17 @@ class FrameBuffer:
         Returns the psnr and delay in a DataFrame format
         The frame who are not received is skipped if skip_bad=True
         """
-        data = [] # format <frame_id> <psnr> <delay>
+        data = [] # format <frame_id> <psnr> <delay> <size>
         for frame_id in self.frames.keys():
             frame = self.frames[frame_id]
             psnr = frame.psnr
             delay = frame.get_delay()
+            size = frame.size
             if skip_bad and delay is None:
                 continue
-            data.append((frame_id, psnr, delay))
+            data.append((frame_id, psnr, delay, size))
 
-        ret = pd.DataFrame(data, columns=["frame_id", "psnr", "delay"])
+        ret = pd.DataFrame(data, columns=["frame_id", "psnr", "delay", "size"])
         return ret
 
 #class TransmissionController:

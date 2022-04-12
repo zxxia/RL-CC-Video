@@ -441,19 +441,20 @@ class VideoApplication:
         """
         return self.trans.get_packet()
 
-    def feedback(self, ts: float, packet_info: List[Tuple[int, bool, float, float, int]], tgt_bitrate: int):
+    def feedback(self, ts: float, packet_info: List[Tuple[int, bool, float, float, int, float]]):
         """
         Called when new packet is acked by the sender, triggered by CC
         Input:
             ts: current timestamp in second.
             packet_info: list of (pkt id, dropped, one way delay, recv
-                    timestamp, pkt size)
-            tgt_bitrate: target_bitrate in byte per sec
+                    timestamp, pkt size (bytes), tgt bitrate (byte per sec))
         """
+        for pkt in packet_info:
+            tgt_bitrate = pkt[-1]
         self.trans.on_target_bitrate_change(tgt_bitrate)
         self.tick(ts)
         for info in packet_info:
-            pktid, islost, delay, recv_ts, pkt_size = info
+            pktid, islost, delay, recv_ts, pkt_size, tgt_br = info
             self.trans.on_packet_feedback(ts, pktid, islost, delay, recv_ts, pkt_size)
 
 class VideoApplicationBuilder:
@@ -628,7 +629,7 @@ def test_app():
     while app.has_data(0):
         id, sz = app.get_packet()
         lost = np.random.uniform(0, 1) < 0.2
-        app.feedback(ts, [(id, lost, ts, ts, sz)], tgt_br)
+        app.feedback(ts, [(id, lost, ts, ts, sz, tgt_br)])
         print(f"packet id={id}, size={sz}, islost={lost}")
 
     print("\033[32m----- Passed test_app -----\033[0m")

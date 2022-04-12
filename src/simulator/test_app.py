@@ -20,7 +20,6 @@ def main():
     # bbr_old = BBR_old(True)
     app = Application()
     bbr = BBR(True, app=app)
-    # bbr = BBR(True)
     bbr.test(trace, 'test', plot_flag=True)
 
     app = Application()

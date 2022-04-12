@@ -32,11 +32,11 @@ class Application:
         # print(ts, packet_info)
         return
 
-''' 
+'''
 =============================
     IMPLEMENTATIONS
 =============================
-''' 
+'''
 class PacketInfo:
     def __init__(self, id: int, size: int):
         """
@@ -136,7 +136,7 @@ class FrameInfo:
         if self.sent_time is not None:
             raise RuntimeError(f"Frame {self.frame_id} is sent twice!")
         self.sent_time = ts
-    
+
     def packetize(self) -> List[PacketInfo]:
         """
         Packetize the frame into packets, can only be called once!
@@ -155,7 +155,7 @@ class FrameInfo:
             remaining_size -= pkt_size
             self.unreceived_frags.append(frag_id)
             frag_id += 1
-        
+
         return ret
 
     def on_recv(self, ts: float, pkt: PacketInfo) -> bool:
@@ -175,7 +175,7 @@ class FrameInfo:
         if self.recv_time is None and self.all_received():
             self.recv_time = ts
         return self.all_received()
-    
+
     def is_sent(self) -> bool:
         """
         Returns:
@@ -199,7 +199,7 @@ class FrameInfo:
         return None
 
 class H264Encoder:
-    """ 
+    """
     Read the H264/H265 profile and provide frames
     """
     def __init__(self, profile):
@@ -234,7 +234,7 @@ class H264Encoder:
             psnr: the psnr of the frame
         """
         temp = self.profile.query("frame_id == @frame_id")
-        tgt_size = size 
+        tgt_size = size
 
         min_possible_size = min(temp["size"])
         worst_psnr = min(temp["psnr"])
@@ -249,11 +249,11 @@ class H264Encoder:
         Input:
             target_size: the target size of a frame
         Returns:
-            frame: the FrameInfo object 
+            frame: the FrameInfo object
         """
         frame_id = self.frame_id
         self.frame_id += 1
-    
+
         size, psnr = self._fit_size_for_frame(frame_id, target_size)
         return FrameInfo(frame_id, size, psnr)
 
@@ -265,7 +265,7 @@ class FrameBuffer:
     """
     def __init__(self):
         self.frames = {} # List[FrameInfo]
-    
+
     def on_frame_sent(self, ts: float, frame: FrameInfo):
         """
         Note: it will call frame.on_sent(), so do not call it outside this class
@@ -355,7 +355,7 @@ class NACKSender:
         """
         pkt = PacketInfo(pkt_id, size) # NOTE: the size of packet is unknown upon receiving, so use a default one
         if is_lost:
-            # TODO: loss recovery 
+            # TODO: loss recovery
             self.rtx_buffer.add_packet(pkt)
         else:
             ''' add the packet into the frame buffer '''
@@ -376,7 +376,7 @@ class NACKSender:
             the frame size in bytes
         """
         return self.target_bitrate_kbps * 1000 / self.frame_rate
-    
+
     def has_data(self, ts: float) -> bool:
         """
         ts: the current timestamp
@@ -402,7 +402,7 @@ class NACKSender:
     def get_frame_buffer(self):
         return self.frame_buffer
 
-class VideoApplication:
+class VideoApplication(Application):
     def __init__(self, fps:int, init_bitrate: int, encoder:H264Encoder, trans:NACKSender):
         self.encoder = encoder
         self.trans = trans
@@ -522,7 +522,7 @@ def test_frame_packet():
 
     assert frame.is_sent() == False
     frame.on_sent(1)
-    assert frame.is_sent() == True 
+    assert frame.is_sent() == True
 
     tot_size = 0
     for pkt in pkt_infos:
@@ -530,7 +530,7 @@ def test_frame_packet():
         assert frame.all_received() == False
         frame.on_recv(tot_size, pkt)
     assert tot_size == 12345
-    assert frame.all_received() 
+    assert frame.all_received()
     assert frame.get_delay() == 12344
     print("\033[32m----- Passed test_frame_packet -----\033[0m")
 
@@ -570,7 +570,7 @@ def test_buffers():
 
 def test_nack_sender():
     print("\033[32m===== start test_nack_sender =====\033[0m")
-    ''' 
+    '''
     interfaces:
         on_new_frame, on_packet_feedback, on_target_bitrate_change
         calculate_frame_size, has_data, get_packet

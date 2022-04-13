@@ -419,13 +419,15 @@ class NACKSender:
         """
         self.target_bitrate_kbps = bitrate_byte_sec / 1000 # convert to KB per sec
 
-    def calculate_frame_size(self) -> int:
+    def calculate_frame_size(self, interval: float) -> int:
         """
         Called when about to encode a new frame, returns a suitable size for the next frame in BYTES
+        Input:
+            interval: the interval between frames, in seconds
         Returns:
             the frame size in bytes
         """
-        return self.target_bitrate_kbps * 1000 / self.frame_rate
+        return self.target_bitrate_kbps * 1000 * interval
 
     def has_data(self, ts: float) -> bool:
         """
@@ -471,13 +473,14 @@ class VideoApplication(Application):
         timestamp: the current timestamp
         """
         self.curr_ts = timestamp
-
+        #print("[{:.4f}] in tick".format(self.curr_ts))
         if self.should_send_new_frame():
-            target_size = self.trans.calculate_frame_size()
+            target_size = self.trans.calculate_frame_size(self.curr_ts - self.last_frame_ts)
             frame = self.encoder.get_next_frame(target_size)
-            print("[{:.4f}] Generated a frame with size {} Bytes".format(self.curr_ts, frame.size))
             if frame is None:
                 return
+            print("[{:.4f}] Generated a frame with size {} Bytes (target_rate={:.3f} real_rate={:.3f})".format(
+                self.curr_ts, frame.size, self.trans.target_bitrate_kbps * 1000, frame.size / (self.curr_ts - self.last_frame_ts)))
             self.trans.on_new_frame(self.curr_ts, frame)
             self.last_frame_ts = self.curr_ts
 

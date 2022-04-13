@@ -183,7 +183,9 @@ class TCPCubicSender(Sender):
         return cnt
 
     def can_send_packet(self) -> bool:
-        return int(self.bytes_in_flight) / BYTES_PER_PACKET < self.cwnd
+        #if isinstance(self.app, Application):
+        #    return int(self.bytes_in_flight) / BYTES_PER_PACKET < self.cwnd and self.app.has_data(self.get_cur_time())
+        return int(self.bytes_in_flight) / BYTES_PER_PACKET < self.cwnd  
 
     def schedule_send(self, first_pkt=False, on_ack=False):
         assert self.net, "network is not registered in sender."

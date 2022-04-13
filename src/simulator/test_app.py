@@ -46,17 +46,17 @@ def main():
     tgt_br = 250 * 1000
     builder.set_profile(profile).set_fps(25).set_init_bitrate(tgt_br)
     app = builder.build()
-    bbr = BBR(True, app=app)
+    #bbr = BBR(True, app=app)
 
     # trace_file = "/tank/pantheon_traces/yihua/ethernet/queue20/2018-12-20T04-36-Colombia-to-AWS-Brazil-2-5-runs/quic_datalink_run1/bbr_datalink_run1.log"
     # trace = Trace.load_from_pantheon_file(trace_file, 0, 20)
     # trace.scale_bw(0.1, 5)
-    bbr.test(trace, 'test', plot_flag=True)
-    print(app.encoder.frame_id)
-    app = builder.build()
+    #bbr.test(trace, 'test', plot_flag=True)
+    #print(app.encoder.frame_id)
+    #app = builder.build()
     cubic = Cubic(True, app)
     cubic.test(trace, 'test', plot_flag=True)
-    print(app.encoder.frame_id)
+    print(app.get_summary())
 
 if __name__ == "__main__":
     main()

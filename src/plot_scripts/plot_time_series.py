@@ -91,7 +91,7 @@ def plot(trace: Union[Trace, None], log_file: str, save_dir: str, cc: str):
     axes[4].legend()
     axes[4].set_xlim(0, )
 
-    axes[5].plot(df['timestamp'], df['packet_in_queue'] /
+    axes[5].plot(df['timestamp'], df['bytes_in_queue'] /
                  df['queue_size'], label='Queue Occupancy')
     axes[5].set_xlabel("Time(s)")
     axes[5].set_ylabel("Queue occupancy")

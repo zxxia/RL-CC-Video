@@ -777,8 +777,8 @@ class BBR:
         if plot_flag and save_dir:
             plot_mi_level_time_series(trace, os.path.join(save_dir, '{}_simulation_log.csv'.format(self.cc_name)), save_dir, self.cc_name)
             plot(trace, *senders[0].bin_tput, *senders[0].bin_sending_rate,
-                 tput * BYTES_PER_PACKET * BITS_PER_BYTE / 1e6,
-                 avg_sending_rate * BYTES_PER_PACKET * BITS_PER_BYTE / 1e6,
+                 tput * BITS_PER_BYTE / 1e6,
+                 avg_sending_rate * BITS_PER_BYTE / 1e6,
                  *senders[0].latencies, avg_lat * 1000, loss,
                  pkt_level_original_reward, pkt_level_reward, save_dir,
                  self.cc_name)

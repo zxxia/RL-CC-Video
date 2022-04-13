@@ -83,7 +83,7 @@ class Sender:
         self.event_count += 1
         self.sent += 1
         self.bytes_in_flight += pkt.pkt_size
-        self.tot_sent += 1
+        self.tot_sent += pkt.pkt_size
         if self.first_sent_ts is None:
             self.first_sent_ts = pkt.ts
         self.last_sent_ts = pkt.ts
@@ -95,7 +95,7 @@ class Sender:
     def on_packet_acked(self, pkt: "packet.Packet") -> None:
         self.acked += 1
         self.cur_avg_latency = (self.cur_avg_latency * self.tot_acked + pkt.rtt) / (self.tot_acked + 1)
-        self.tot_acked += 1
+        self.tot_acked += pkt.pkt_size
         if self.first_ack_ts is None:
             self.first_ack_ts = pkt.ts
         self.last_ack_ts = pkt.ts
@@ -191,8 +191,8 @@ class Sender:
         self.srtt = None
         self.rttvar = None
         self.rto = 3  # retransmission timeout (seconds)
-        self.tot_sent = 0 # no. of packets
-        self.tot_acked = 0 # no. of packets
+        self.tot_sent = 0 # no. of bytes
+        self.tot_acked = 0 # no. of bytes
         self.tot_lost = 0 # no. of packets
         self.cur_avg_latency = 0.0
         self.first_ack_ts = None

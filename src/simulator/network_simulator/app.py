@@ -9,6 +9,8 @@ class Application:
     def __init__(self):
         self.pkt_cnt = 0
 
+    def queue_len(self, ts: float) -> int:
+        return 1000
 
     def has_data(self, ts: float)-> bool:
         return not (4 < ts < 5 or 10 < ts < 13)
@@ -67,6 +69,9 @@ class PacketBuffer:
         size: the size of the packet
         """
         self.buffer.append(pkt)
+
+    def queue_len(self) -> bool:
+        return len(self.buffer)
 
     def has_data(self) -> bool:
         return len(self.buffer) > 0
@@ -414,13 +419,15 @@ class NACKSender:
         """
         self.target_bitrate_kbps = bitrate_byte_sec / 1000 # convert to KB per sec
 
-    def calculate_frame_size(self) -> int:
+    def calculate_frame_size(self, interval: float) -> int:
         """
         Called when about to encode a new frame, returns a suitable size for the next frame in BYTES
+        Input:
+            interval: the interval between frames, in seconds
         Returns:
             the frame size in bytes
         """
-        return self.target_bitrate_kbps * 1000 / self.frame_rate
+        return self.target_bitrate_kbps * 1000 * interval
 
     def has_data(self, ts: float) -> bool:
         """
@@ -428,6 +435,9 @@ class NACKSender:
         returns True if there is any data to send
         """
         return self.pkt_buffer.has_data() or self.rtx_buffer.has_data()
+
+    def queue_len(self, ts: float) -> int:
+        return self.pkt_buffer.queue_len() + self.rtx_buffer.queue_len()
 
     def get_packet(self) -> Tuple[int, int]:
         """
@@ -463,18 +473,26 @@ class VideoApplication(Application):
         timestamp: the current timestamp
         """
         self.curr_ts = timestamp
-
+        #print("[{:.4f}] in tick".format(self.curr_ts))
         if self.should_send_new_frame():
-            target_size = self.trans.calculate_frame_size()
+            target_size = self.trans.calculate_frame_size(self.curr_ts - self.last_frame_ts)
             frame = self.encoder.get_next_frame(target_size)
-            print("[{:.4f}] Generated a frame with size {} Bytes".format(self.curr_ts, frame.size))
             if frame is None:
                 return
+            print("[{:.4f}] Generated a frame with size {} Bytes (target_rate={:.3f} real_rate={:.3f})".format(
+                self.curr_ts, frame.size, self.trans.target_bitrate_kbps * 1000, frame.size / (self.curr_ts - self.last_frame_ts)))
             self.trans.on_new_frame(self.curr_ts, frame)
             self.last_frame_ts = self.curr_ts
 
     def should_send_new_frame(self) -> bool:
         return self.curr_ts - self.last_frame_ts > 1 / self.fps
+
+    def queue_len(self, ts: float) -> bool:
+        """
+        ts: the current timestamp
+        """
+        self.tick(ts)
+        return self.trans.queue_len(ts)
 
     def has_data(self, ts: float) -> bool:
         """

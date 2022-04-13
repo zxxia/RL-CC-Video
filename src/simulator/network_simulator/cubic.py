@@ -183,14 +183,20 @@ class TCPCubicSender(Sender):
         return cnt
 
     def can_send_packet(self) -> bool:
-        return int(self.bytes_in_flight) / BYTES_PER_PACKET < self.cwnd
+        #if isinstance(self.app, Application):
+        #    return int(self.bytes_in_flight) / BYTES_PER_PACKET < self.cwnd and self.app.has_data(self.get_cur_time())
+        return int(self.bytes_in_flight) / BYTES_PER_PACKET < self.cwnd  
 
     def schedule_send(self, first_pkt=False, on_ack=False):
         assert self.net, "network is not registered in sender."
-        for _ in range(int(self.cwnd - self.bytes_in_flight / BYTES_PER_PACKET)):
-            if isinstance(self.app, Application) and not self.app.has_data(self.get_cur_time()):
-                print(self.get_cur_time(), self.app.has_data(self.get_cur_time()))
-                continue
+        queue_len = int(self.cwnd - self.bytes_in_flight / BYTES_PER_PACKET)
+        if isinstance(self.app, Application):
+            queue_len = min(queue_len, self.app.queue_len(self.get_cur_time()))
+        #for _ in range(int(self.cwnd - self.bytes_in_flight / BYTES_PER_PACKET)):
+        for _ in range(queue_len):
+            #if isinstance(self.app, Application) and not self.app.has_data(self.get_cur_time()):
+            #    print(self.get_cur_time(), self.app.has_data(self.get_cur_time()))
+            #    continue
             pkt = Packet(self.get_cur_time(), self, 0)
             self.net.add_packet(pkt)
 

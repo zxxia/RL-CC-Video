@@ -696,7 +696,7 @@ class BBR:
                                  "send_end_time", 'recv_start_time',
                                  'recv_end_time', 'latency_increase',
                                  "packet_size", 'bandwidth', "queue_delay",
-                                 'packet_in_queue', 'queue_size', 'cwnd',
+                                 'bytes_in_queue', 'queue_size', 'cwnd',
                                  'ssthresh', "rto", "packets_in_flight"])
         else:
             f_sim_log = None
@@ -729,7 +729,7 @@ class BBR:
                     mi.send_start, mi.send_end, mi.recv_start, mi.recv_end,
                     mi.get('latency increase'), mi.packet_size,
                     links[0].get_bandwidth(net.get_cur_time()) * BYTES_PER_PACKET * BITS_PER_BYTE,
-                    avg_queue_delay, links[0].pkt_in_queue, links[0].queue_size,
+                    avg_queue_delay, links[0].bytes_in_queue, links[0].queue_size,
                     senders[0].cwnd, ssthresh, senders[0].rto,
                     senders[0].bytes_in_flight / BYTES_PER_PACKET])
             if senders[0].srtt:

@@ -148,7 +148,7 @@ class Network:
                 #     pkt.add_propagation_delay(noise)
                 pkt.add_queue_delay(q_delay, 'datalink')
                 pkt.add_transmission_delay(1 / self.links[0].get_bandwidth(self.cur_time), 'datalink')
-                if not self.links[pkt.next_hop].packet_enters_link(self.cur_time):
+                if not self.links[pkt.next_hop].packet_enters_link(self.cur_time, pkt):
                     pkt.drop()
                 self.extra_delays.append(
                     1 / self.links[pkt.next_hop].get_bandwidth(self.cur_time))

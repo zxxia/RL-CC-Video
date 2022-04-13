@@ -25,15 +25,15 @@ class Sender:
         """
         self.sender_id = sender_id
         # variables to track in a MonitorInterval. Units: packet
-        self.sent = 0  # no. of packets
-        self.acked = 0  # no. of packets
-        self.lost = 0  # no. of packets
+        self.sent = 0  # no. of bytes
+        self.acked = 0  # no. of bytes
+        self.lost = 0  # no. of bytes
         self.rtt_samples = []
         self.queue_delay_samples = []
 
         # variables to track accross the connection session
-        self.tot_sent = 0 # no. of packets
-        self.tot_acked = 0 # no. of packets
+        self.tot_sent = 0 # no. of bytes
+        self.tot_acked = 0 # no. of bytes
         self.tot_lost = 0 # no. of packets
         self.cur_avg_latency = 0.0
         self.first_ack_ts = None
@@ -81,7 +81,7 @@ class Sender:
         assert pkt.pkt_size != 0
         pkt.pkt_id = self.event_count
         self.event_count += 1
-        self.sent += 1
+        self.sent += pkt.pkt_size
         self.bytes_in_flight += pkt.pkt_size
         self.tot_sent += pkt.pkt_size
         if self.first_sent_ts is None:
@@ -93,7 +93,7 @@ class Sender:
         return True
 
     def on_packet_acked(self, pkt: "packet.Packet") -> None:
-        self.acked += 1
+        self.acked += pkt.pkt_size
         self.cur_avg_latency = (self.cur_avg_latency * self.tot_acked + pkt.rtt) / (self.tot_acked + 1)
         self.tot_acked += pkt.pkt_size
         if self.first_ack_ts is None:
@@ -131,7 +131,7 @@ class Sender:
                   self.pacing_rate)])
 
     def on_packet_lost(self, pkt: "packet.Packet") -> None:
-        self.lost += 1
+        self.lost += pkt.pkt_size
         self.tot_lost += 1
         assert self.bytes_in_flight >= pkt.pkt_size
         self.bytes_in_flight -= pkt.pkt_size
@@ -160,9 +160,9 @@ class Sender:
 
         return sender_obs.SenderMonitorInterval(
             self.sender_id,
-            bytes_sent=self.sent * BYTES_PER_PACKET,
-            bytes_acked=self.acked * BYTES_PER_PACKET,
-            bytes_lost=self.lost * BYTES_PER_PACKET,
+            bytes_sent=self.sent,
+            bytes_acked=self.acked,
+            bytes_lost=self.lost,
             send_start=self.obs_start_time,
             send_end=obs_end_time,
             recv_start=self.obs_start_time,

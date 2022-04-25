@@ -76,11 +76,11 @@ class Network:
 
             self.cur_time = pkt.ts
             push_new_event = False
-            if (len(self.q) == 0 and not pkt.sender.app.has_data(self.cur_time)):
+            if (len(self.q) == 0 and pkt.sender.app and not pkt.sender.app.has_data(self.cur_time)):
                 self.add_packet(Packet(self.get_cur_time() + 0.001, pkt.sender, 0, 0))
-            elif (len(self.q) == 0 and pkt.sender.app.has_data(self.cur_time)):# and self.cur_time !=0 ):
+            elif (len(self.q) == 0 and pkt.sender.app and pkt.sender.app.has_data(self.cur_time)):# and self.cur_time !=0 ):
                 pkt.sender.schedule_send(on_ack=True)
-            if pkt.pkt_size == 0:
+            if pkt.pkt_size == 0 and pkt.sender.app:
                 if pkt.sender.app.has_data(self.cur_time):
                     pkt.sender.schedule_send(on_ack=True)
                 continue
